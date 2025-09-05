@@ -62,8 +62,14 @@ jobs:
         echo "build_time=$(date -u)" >> $GITHUB_OUTPUT
 
     - name: Rename APK
+      id: rename
       run: |
-        mv ${{ steps.sign_app.outputs.signedReleaseFile }} $(dirname ${{ steps.sign_app.outputs.signedReleaseFile }})/sms-synology-chat-forwarder.apk
+        SIGNED_APK="${{ steps.sign_app.outputs.signedReleaseFile }}"
+        APK_DIR=$(dirname "$SIGNED_APK")
+        NEW_APK_PATH="$APK_DIR/sms-synology-chat-forwarder.apk"
+        mv "$SIGNED_APK" "$NEW_APK_PATH"
+        echo "renamed_apk_path=$NEW_APK_PATH" >> $GITHUB_OUTPUT
+        ls -la "$APK_DIR"
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -91,7 +97,7 @@ jobs:
           
           Built on: ${{ steps.tag.outputs.build_time }}
         files: |
-          $(dirname ${{ steps.sign_app.outputs.signedReleaseFile }})/sms-synology-chat-forwarder.apk
+          ${{ steps.rename.outputs.renamed_apk_path }}
         draft: false
         prerelease: false
       env:
@@ -101,5 +107,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: sms-synology-chat-forwarder
-        path: $(dirname ${{ steps.sign_app.outputs.signedReleaseFile }})/sms-synology-chat-forwarder.apk
+        path: ${{ steps.rename.outputs.renamed_apk_path }}
         retention-days: 30
