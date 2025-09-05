@@ -2,7 +2,14 @@ package com.example.smssynologychat
 
 import android.content.Context
 import android.util.Log
+import com.example.smssynologychat.data.AppDatabase
+import com.example.smssynologychat.data.SmsStatus
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import okhttp3.*
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -16,7 +23,8 @@ object SynologyWebhookService {
         context: Context,
         sender: String,
         message: String,
-        timestamp: Long
+        timestamp: Long,
+        messageId: Long
     ) {
         try {
             val settingsStore = SettingsDataStore(context)
@@ -45,16 +53,36 @@ object SynologyWebhookService {
                 .post(formBody)
                 .build()
 
+            val db = AppDatabase.getInstance(context)
+            val dao = db.smsMessageDao()
+
             client.newCall(request).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     Log.e(tag, "Failed to send webhook: ${e.message}", e)
+                    @OptIn(DelicateCoroutinesApi::class)
+                    GlobalScope.launch(Dispatchers.IO) {
+                        val msg = dao.getMessageById(messageId)
+                        if (msg != null) {
+                            dao.update(msg.copy(status = SmsStatus.FAILED))
+                        }
+                    }
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    if (response.isSuccessful) {
-                        Log.d(tag, "Successfully sent SMS to Synology Chat")
-                    } else {
-                        Log.e(tag, "Webhook request failed: ${response.code} ${response.message}")
+                    @OptIn(DelicateCoroutinesApi::class)
+                    GlobalScope.launch(Dispatchers.IO) {
+                        val msg = dao.getMessageById(messageId)
+                        if (response.isSuccessful) {
+                            Log.d(tag, "Successfully sent SMS to Synology Chat")
+                            if (msg != null) {
+                                dao.update(msg.copy(status = SmsStatus.SENT))
+                            }
+                        } else {
+                            Log.e(tag, "Webhook request failed: ${response.code} ${response.message}")
+                            if (msg != null) {
+                                dao.update(msg.copy(status = SmsStatus.FAILED))
+                            }
+                        }
                     }
                     response.close()
                 }
@@ -62,6 +90,15 @@ object SynologyWebhookService {
 
         } catch (e: Exception) {
             Log.e(tag, "Error sending webhook: ${e.message}", e)
+            val db = AppDatabase.getInstance(context)
+            val dao = db.smsMessageDao()
+            @OptIn(DelicateCoroutinesApi::class)
+            GlobalScope.launch(Dispatchers.IO) {
+                val msg = dao.getMessageById(messageId)
+                if (msg != null) {
+                    dao.update(msg.copy(status = SmsStatus.FAILED))
+                }
+            }
         }
     }
 

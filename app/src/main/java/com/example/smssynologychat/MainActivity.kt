@@ -12,6 +12,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -66,7 +68,7 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
     var testResult by remember { mutableStateOf<String?>(null) }
     var showTestResult by remember { mutableStateOf(false) }
     var isBatteryOptimized by remember { mutableStateOf(true) }
-
+    var showStatusScreen by remember { mutableStateOf(false) }
     val settingsStore = remember { SettingsDataStore(context) }
 
     // Permission launcher
@@ -79,8 +81,7 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
     // Battery optimization launcher
     val batteryOptimizationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) {
-        // Check battery optimization status after returning
+    ) { result ->
         val powerManager = context.getSystemService(PowerManager::class.java)
         isBatteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             !powerManager.isIgnoringBatteryOptimizations(context.packageName)
@@ -143,9 +144,15 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
         return
     }
 
+    if (showStatusScreen) {
+        MessageStatusScreen(onBack = { showStatusScreen = false })
+        return
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -156,28 +163,24 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth()
         )
 
-        // Battery Optimization section
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        // Battery Optimization section - only show if battery optimization is enabled
+        if (isBatteryOptimized) {
+            Card(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "Background Execution",
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                if (!isBatteryOptimized) {
-                    Text("✅ Battery optimization disabled - app can run in background")
-                } else {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Background Execution",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                     Text(
                         text = "⚠️ Battery optimization is enabled - this may prevent SMS forwarding",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error
                     )
-
                     Button(
                         onClick = { requestBatteryOptimizationExemption() }
                     ) {
@@ -187,33 +190,24 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
             }
         }
 
-        // Permission section
-        Card(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        // Permission section - only show if permissions are not granted
+        if (!hasPermissions) {
+            Card(
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "SMS Permissions",
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                if (hasPermissions) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("✅ SMS permissions granted")
-                    }
-                } else {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "SMS Permissions",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                     Text(
                         text = "SMS permissions are required to read incoming messages",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error
                     )
-
                     Button(
                         onClick = {
                             permissionLauncher.launch(PermissionManager.getSmsPermissions())
@@ -329,28 +323,37 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
             }
         }
 
-        // Instructions
-        Card(
+        // Instructions - only show if webhook URL is empty
+        if (webhookUrl.isBlank()) {
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "How to get Synology Chat Webhook URL:",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    Text(
+                        text = "1. Open Synology Chat\n" +
+                                "2. Go to the channel where you want to receive SMS\n" +
+                                "3. Click the gear icon → Integrations\n" +
+                                "4. Add Incoming Webhook\n" +
+                                "5. Copy the webhook URL and paste it above",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+
+        Button(
+            onClick = { showStatusScreen = true },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "How to get Synology Chat Webhook URL:",
-                    style = MaterialTheme.typography.titleMedium
-                )
-
-                Text(
-                    text = "1. Open Synology Chat\n" +
-                            "2. Go to the channel where you want to receive SMS\n" +
-                            "3. Click the gear icon → Integrations\n" +
-                            "4. Add Incoming Webhook\n" +
-                            "5. Copy the webhook URL and paste it above",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+            Text("View Message Status")
         }
     }
 }
