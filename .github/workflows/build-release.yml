@@ -55,10 +55,15 @@ jobs:
         # override default build-tools version (29.0.3) -- optional
         BUILD_TOOLS_VERSION: "34.0.0"
 
-    - name: Generate release tag
+    - name: Generate release tag and build time
       id: tag
       run: |
         echo "release_tag=v$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        echo "build_time=$(date -u)" >> $GITHUB_OUTPUT
+
+    - name: Rename APK
+      run: |
+        mv ${{ steps.sign_app.outputs.signedReleaseFile }} $(dirname ${{ steps.sign_app.outputs.signedReleaseFile }})/sms-synology-chat-forwarder.apk
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -84,9 +89,9 @@ jobs:
           5. Configure your Synology Chat webhook URL
           6. Disable battery optimization when prompted
           
-          Built on: $(date -u)
+          Built on: ${{ steps.tag.outputs.build_time }}
         files: |
-          ${{ steps.sign_app.outputs.signedReleaseFile }}
+          $(dirname ${{ steps.sign_app.outputs.signedReleaseFile }})/sms-synology-chat-forwarder.apk
         draft: false
         prerelease: false
       env:
@@ -95,6 +100,6 @@ jobs:
     - name: Upload APK as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: sms-synology-chat-apk
-        path: ${{ steps.sign_app.outputs.signedReleaseFile }}
+        name: sms-synology-chat-forwarder
+        path: $(dirname ${{ steps.sign_app.outputs.signedReleaseFile }})/sms-synology-chat-forwarder.apk
         retention-days: 30
