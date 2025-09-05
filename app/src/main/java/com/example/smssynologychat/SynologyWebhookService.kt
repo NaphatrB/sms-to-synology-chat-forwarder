@@ -30,20 +30,19 @@ object SynologyWebhookService {
             val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
             val formattedTime = dateFormat.format(Date(timestamp))
 
-            val messageText = "📱 **SMS Received**\n" +
+            val messageText = "**SMS Received**\n" +
                     "**From:** $sender\n" +
                     "**Time:** $formattedTime\n" +
                     "**Message:** $message"
 
-            // Create form-encoded body
+            // Synology Chat webhook expects payload parameter
             val formBody = FormBody.Builder()
-                .add("text", messageText)
+                .add("payload", "{\"text\":\"$messageText\"}")
                 .build()
 
             val request = Request.Builder()
                 .url(webhookUrl)
                 .post(formBody)
-                .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .build()
 
             client.newCall(request).enqueue(object : Callback {
@@ -75,19 +74,18 @@ object SynologyWebhookService {
                 return Result.failure(Exception("Webhook URL not configured"))
             }
 
-            val testMessage = "🧪 **Test Message**\n" +
+            val testMessage = "**Test Message**\n" +
                     "This is a test message from your SMS to Synology Chat forwarder app.\n" +
-                    "If you can see this message, your webhook is configured correctly! ✅"
+                    "If you can see this message, your webhook is configured correctly!"
 
-            // Create form-encoded body
+            // Synology Chat webhook expects payload parameter
             val formBody = FormBody.Builder()
-                .add("text", testMessage)
+                .add("payload", "{\"text\":\"$testMessage\"}")
                 .build()
 
             val request = Request.Builder()
                 .url(webhookUrl)
                 .post(formBody)
-                .addHeader("Content-Type", "application/x-www-form-urlencoded")
                 .build()
 
             val response = client.newCall(request).execute()

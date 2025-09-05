@@ -1,6 +1,11 @@
 package com.example.smssynologychat
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -25,6 +30,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Start the foreground service
+        startSmsForwarderService()
+
         setContent {
             SMSSynologyChatTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
@@ -33,6 +42,15 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    private fun startSmsForwarderService() {
+        val serviceIntent = Intent(this, SmsForwarderService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
         }
     }
 }
@@ -47,6 +65,7 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var showTestResult by remember { mutableStateOf(false) }
+    var isBatteryOptimized by remember { mutableStateOf(true) }
 
     val settingsStore = remember { SettingsDataStore(context) }
 
@@ -57,10 +76,32 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
         hasPermissions = permissions.all { it.value }
     }
 
+    // Battery optimization launcher
+    val batteryOptimizationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Check battery optimization status after returning
+        val powerManager = context.getSystemService(PowerManager::class.java)
+        isBatteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        } else {
+            false
+        }
+    }
+
     // Load initial data
     LaunchedEffect(Unit) {
         webhookUrl = settingsStore.webhookUrl.first()
         hasPermissions = PermissionManager.hasAllSmsPermissions(context)
+
+        // Check battery optimization status
+        val powerManager = context.getSystemService(PowerManager::class.java)
+        isBatteryOptimized = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            !powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        } else {
+            false
+        }
+
         isLoading = false
     }
 
@@ -79,6 +120,16 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
                 }
                 showTestResult = true
             }
+        }
+    }
+
+    // Battery optimization request function
+    fun requestBatteryOptimizationExemption() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = Uri.parse("package:${context.packageName}")
+            }
+            batteryOptimizationLauncher.launch(intent)
         }
     }
 
@@ -104,6 +155,37 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
+
+        // Battery Optimization section
+        Card(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Background Execution",
+                    style = MaterialTheme.typography.titleMedium
+                )
+
+                if (!isBatteryOptimized) {
+                    Text("✅ Battery optimization disabled - app can run in background")
+                } else {
+                    Text(
+                        text = "⚠️ Battery optimization is enabled - this may prevent SMS forwarding",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+
+                    Button(
+                        onClick = { requestBatteryOptimizationExemption() }
+                    ) {
+                        Text("Disable Battery Optimization")
+                    }
+                }
+            }
+        }
 
         // Permission section
         Card(
@@ -231,16 +313,16 @@ fun SmsForwarderApp(modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.titleMedium
                 )
 
-                val isConfigured = hasPermissions && webhookUrl.isNotBlank()
+                val isConfigured = hasPermissions && webhookUrl.isNotBlank() && !isBatteryOptimized
 
                 if (isConfigured) {
                     Text(
-                        text = "✅ App is configured and ready to forward SMS messages",
+                        text = "✅ App is configured and running in background - SMS forwarding active",
                         color = MaterialTheme.colorScheme.primary
                     )
                 } else {
                     Text(
-                        text = "⚠️ Please complete the configuration above",
+                        text = "⚠️ Please complete the configuration above for reliable background operation",
                         color = MaterialTheme.colorScheme.error
                     )
                 }
