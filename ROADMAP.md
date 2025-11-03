@@ -4,7 +4,7 @@
 
 The application currently supports:
 - ✅ Automatic SMS forwarding to Synology Chat via webhook
-- ✅ Background foreground service for reliable operation
+- ✅ Background service for reliable operation
 - ✅ Battery optimization exemption handling
 - ✅ SMS reading and notification permissions management
 - ✅ Test webhook functionality
