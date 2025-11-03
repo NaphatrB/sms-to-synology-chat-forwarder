@@ -179,6 +179,10 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Uses [OkHttp](https://square.github.io/okhttp/) for HTTP requests
 - Material Design components from [Material 3](https://m3.material.io/)
 
+## 🗺️ Roadmap
+
+Check out our [Project Roadmap](ROADMAP.md) to see what features are planned for future releases!
+
 ## 📬 Support
 
 - **Issues**: [GitHub Issues](../../issues)
